@@ -241,13 +241,20 @@ async def init_cosmosdb_client():
 def prepare_model_args(request_body, request_headers):
     request_messages = request_body.get("messages", [])
     messages = []
-    if not app_settings.datasource:
-        messages = [
-            {
-                "role": "system",
-                "content": app_settings.azure_openai.system_message
-            }
-        ]
+if not app_settings.datasource:
+    try:
+        with open("system_prompt.txt", "r", encoding="utf-8") as f:
+            system_prompt = f.read()
+    except Exception as e:
+        logging.warning(f"Could not load system_prompt.txt: {e}")
+        system_prompt = app_settings.azure_openai.system_message or ""
+
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt
+        }
+    ]
 
     for message in request_messages:
         if message:
