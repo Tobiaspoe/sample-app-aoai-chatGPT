@@ -145,14 +145,19 @@ async def init_openai_client():
 
         # Authentication
         aoai_api_key = app_settings.azure_openai.key
-        ad_token_provider = None
-        if not aoai_api_key:
-            logging.debug("No AZURE_OPENAI_KEY found, using Azure Entra ID auth")
+        
+        if aoai_api_key:
+            logging.debug("✅ Using Azure OpenAI API Key authentication")
+            ad_token_provider = None
+        else:
+            logging.debug("⚠️ No AZURE_OPENAI_KEY found, falling back to Azure Entra ID auth")
             async with DefaultAzureCredential() as credential:
                 ad_token_provider = get_bearer_token_provider(
                     credential,
                     "https://cognitiveservices.azure.com/.default"
                 )
+        
+                        )
 
         # Deployment
         deployment = app_settings.azure_openai.model
