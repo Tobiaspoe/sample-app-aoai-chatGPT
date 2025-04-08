@@ -183,7 +183,7 @@ async def init_openai_client():
         
         azure_openai_client = AsyncAzureOpenAI(
             api_version=app_settings.azure_openai.preview_api_version,
-            api_key=aoai_api_key,
+            api_key="8Q3gzvFocgbv0GRUffwU4t0PXicVQ1BoeqXQVzzDzdxiOqYpDw8cJQQJ99BCACfhMk5XJ3w3AAABACOGWQBQ",
             azure_ad_token_provider=ad_token_provider,
             default_headers=default_headers,
             azure_endpoint=endpoint,
