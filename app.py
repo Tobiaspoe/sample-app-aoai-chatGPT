@@ -143,123 +143,39 @@ async def init_openai_client():
             else f"https://{app_settings.azure_openai.resource}.openai.azure.com/"
         )
 
+
         # Authentication
         aoai_api_key = app_settings.azure_openai.key
-        
-        if aoai_api_key:
-            logging.debug("✅ Using Azure OpenAI API Key authentication")
-            ad_token_provider = None
-        else:
-            logging.debug("⚠️ No AZURE_OPENAI_KEY found, falling back to Azure Entra ID auth")
+        ad_token_provider = None
+        if not aoai_api_key:
+            logging.debug("No AZURE_OPENAI_KEY found, using Azure Entra ID auth")
             async with DefaultAzureCredential() as credential:
                 ad_token_provider = get_bearer_token_provider(
                     credential,
                     "https://cognitiveservices.azure.com/.default"
                 )
-        
-                        )
 
         # Deployment
         deployment = app_settings.azure_openai.model
-        if not deployment:
-            raise ValueError("AZURE_OPENAI_MODEL is required")
+	@@ -178,7 +183,7 @@ async def init_openai_client():
 
-        # Default Headers
-        default_headers = {"x-ms-useragent": USER_AGENT}
-
-        # Remote function calls
-        if app_settings.azure_openai.function_call_azure_functions_enabled:
-            azure_functions_tools_url = f"{app_settings.azure_openai.function_call_azure_functions_tools_base_url}?code={app_settings.azure_openai.function_call_azure_functions_tools_key}"
-            async with httpx.AsyncClient() as client:
-                response = await client.get(azure_functions_tools_url)
-            response_status_code = response.status_code
-            if response_status_code == httpx.codes.OK:
-                azure_openai_tools.extend(json.loads(response.text))
-                for tool in azure_openai_tools:
-                    azure_openai_available_tools.append(tool["function"]["name"])
-            else:
-                logging.error(f"An error occurred while getting OpenAI Function Call tools metadata: {response.status_code}")
-
-        
         azure_openai_client = AsyncAzureOpenAI(
             api_version=app_settings.azure_openai.preview_api_version,
-            api_key="8Q3gzvFocgbv0GRUffwU4t0PXicVQ1BoeqXQVzzDzdxiOqYpDw8cJQQJ99BCACfhMk5XJ3w3AAABACOGWQBQ",
+            api_key=aoai_api_key,
             azure_ad_token_provider=ad_token_provider,
             default_headers=default_headers,
             azure_endpoint=endpoint,
-        )
-
-        return azure_openai_client
-    except Exception as e:
-        logging.exception("Exception in Azure OpenAI initialization", e)
-        azure_openai_client = None
-        raise e
-
-async def openai_remote_azure_function_call(function_name, function_args):
-    if app_settings.azure_openai.function_call_azure_functions_enabled is not True:
-        return
-
-    azure_functions_tool_url = f"{app_settings.azure_openai.function_call_azure_functions_tool_base_url}?code={app_settings.azure_openai.function_call_azure_functions_tool_key}"
-    headers = {'content-type': 'application/json'}
-    body = {
-        "tool_name": function_name,
-        "tool_arguments": json.loads(function_args)
-    }
-    async with httpx.AsyncClient() as client:
-        response = await client.post(azure_functions_tool_url, data=json.dumps(body), headers=headers)
-    response.raise_for_status()
-
-    return response.text
-
-async def init_cosmosdb_client():
-    cosmos_conversation_client = None
-    if app_settings.chat_history:
-        try:
-            cosmos_endpoint = (
-                f"https://{app_settings.chat_history.account}.documents.azure.com:443/"
-            )
-
-            if not app_settings.chat_history.account_key:
-                async with DefaultAzureCredential() as cred:
-                    credential = cred
-                    
-            else:
-                credential = app_settings.chat_history.account_key
-
-            cosmos_conversation_client = CosmosConversationClient(
-                cosmosdb_endpoint=cosmos_endpoint,
-                credential=credential,
-                database_name=app_settings.chat_history.database,
-                container_name=app_settings.chat_history.conversations_container,
-                enable_message_feedback=app_settings.chat_history.enable_feedback,
-            )
-        except Exception as e:
-            logging.exception("Exception in CosmosDB initialization", e)
-            cosmos_conversation_client = None
-            raise e
-    else:
-        logging.debug("CosmosDB not configured")
-
-    return cosmos_conversation_client
-
-
+	@@ -241,13 +246,20 @@ async def init_cosmosdb_client():
 def prepare_model_args(request_body, request_headers):
     request_messages = request_body.get("messages", [])
     messages = []
-if not app_settings.datasource:
-    try:
-        with open("system_prompt.txt", "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-    except Exception as e:
-        logging.warning(f"Could not load system_prompt.txt: {e}")
-        system_prompt = app_settings.azure_openai.system_message or ""
-
-    messages = [
-        {
-            "role": "system",
-            "content": system_prompt
-        }
-    ]
+    if not app_settings.datasource:
+        messages = [
+            {
+                "role": "system",
+                "content": app_settings.azure_openai.system_message
+            }
+        ]
 
     for message in request_messages:
         if message:
